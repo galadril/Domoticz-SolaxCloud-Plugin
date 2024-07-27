@@ -24,6 +24,7 @@
 import Domoticz
 import requests
 import time
+import datetime
 
 class SolaxPlugin:
     def __init__(self):
@@ -88,6 +89,7 @@ class SolaxPlugin:
         except requests.RequestException as e:
             Domoticz.Error(f"SolaxPlugin: Get Site ID request failed: {str(e)}")
 
+
     def updateDevice(self):
         if not self.token or not self.siteId:
             Domoticz.Error("SolaxPlugin: No token or siteId available")
@@ -103,27 +105,43 @@ class SolaxPlugin:
 
             if data.get('success'):
                 inverter_data = data['result'][0]
-                last_update_time = inverter_data['lastUpdateTimes']
-                Domoticz.Log(f"SolaxPlugin: Last update time: {last_update_time}")
+                last_update_time_str = inverter_data['lastUpdateTimes']
+                Domoticz.Log(f"SolaxPlugin: Last update time: {last_update_time_str}")
+
+                # Convert last update time to a datetime object
+                last_update_time = datetime.datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
+
+                # Calculate the time difference between now and the last update time
+                time_diff = datetime.datetime.now() - last_update_time
+                minutes_diff = time_diff.total_seconds() / 60.0
+
+                # Correct the unit conversion
+                total_yield_w = inverter_data['totalYield'] * 1000.0
+                today_yield_kwh = inverter_data['rgmTodayYield']
+                today_yield_w = today_yield_kwh * 1000.0
+
+                # Set grid_power_w to 0 if the last update was more than 10 minutes ago
+                if minutes_diff > 10:
+                    grid_power_w = 0
+                else:
+                    grid_power_w = inverter_data['gridPower']
 
                 # Update devices with received data
-                self.updateDeviceValue(1, 0, f"0;{inverter_data['totalYield']}")  # Total Energy Yield
-                self.updateDeviceValue(2, 0, f"{inverter_data['gridPower']};{inverter_data['todayYield']}")  # Today's Energy Yield
-                self.updateDeviceValue(3, 0, f"{inverter_data['gridPower']};{inverter_data['totalYield']}")  # Grid Power
+                self.updateDeviceValue(1, 0, f"0;{total_yield_w:.4f}")  # Total Energy Yield in kWh
+                self.updateDeviceValue(2, 0, f"{grid_power_w};{today_yield_w:.1f}")  # Grid Power in W and Today's Energy Yield in kWh
 
                 # Update other devices
-                self.updateDeviceValue(4, 0, inverter_data['pv1Voltage'])
-                self.updateDeviceValue(5, 0, inverter_data['pv1Current'])
-                self.updateDeviceValue(6, 0, inverter_data['powerdc1'])
-                self.updateDeviceValue(7, 0, inverter_data['vac1'])
-                self.updateDeviceValue(8, 0, inverter_data['iac1'])
-                self.updateDeviceValue(9, 0, inverter_data['fac1'])
-                self.updateDeviceValue(10, 0, inverter_data['temperature'])
+                self.updateDeviceValue(3, 0, inverter_data['pv1Voltage'])
+                self.updateDeviceValue(4, 0, inverter_data['pv1Current'])
+                self.updateDeviceValue(5, 0, inverter_data['powerdc1'])
+                self.updateDeviceValue(6, 0, inverter_data['vac1'])
+                self.updateDeviceValue(7, 0, inverter_data['iac1'])
+                self.updateDeviceValue(8, 0, inverter_data['fac1'])
+                self.updateDeviceValue(9, 0, inverter_data['temperature'])
             else:
                 Domoticz.Error("SolaxPlugin: Failed to retrieve inverter data: " + data.get('exception', 'Unknown error'))
         except requests.RequestException as e:
             Domoticz.Error(f"SolaxPlugin: Update device request failed: {str(e)}")
-
 
     def onStop(self):
         Domoticz.Log("SolaxPlugin: Stopped")
@@ -143,25 +161,23 @@ class SolaxPlugin:
         if len(Devices) < 1:
             Domoticz.Device(Name="Total Energy Yield", Unit=1, TypeName='kWh', Options={'EnergyMeterMode': '1'}, Switchtype=4).Create()
         if len(Devices) < 2:
-            Domoticz.Device(Name="Today's Energy Yield", Unit=2, TypeName='kWh', Options={'EnergyMeterMode': '1'}, Switchtype=4).Create()
-        if len(Devices) < 3:
-            Domoticz.Device(Name="Grid Power", Unit=3, TypeName='kWh', Options={'EnergyMeterMode': 'From Device'}, Switchtype=4).Create()
+            Domoticz.Device(Name="Grid Power", Unit=2, TypeName='kWh', Options={'EnergyMeterMode': 'From Device'}, Switchtype=4).Create()
 
         # Create other types of devices
+        if len(Devices) < 3:
+            Domoticz.Device(Name="PV1 Voltage", Unit=3, TypeName='Voltage').Create()
         if len(Devices) < 4:
-            Domoticz.Device(Name="PV1 Voltage", Unit=4, TypeName='Voltage').Create()
+            Domoticz.Device(Name="PV1 Current", Unit=4, TypeName='Usage', Options={'ValueQuantity': 'Current', 'ValueUnits': 'A'}).Create()
         if len(Devices) < 5:
-            Domoticz.Device(Name="PV1 Current", Unit=5, TypeName='Usage', Options={'ValueQuantity': 'Current', 'ValueUnits': 'A'}).Create()
+            Domoticz.Device(Name="Power DC1", Unit=5, TypeName='Usage').Create()
         if len(Devices) < 6:
-            Domoticz.Device(Name="Power DC1", Unit=6, TypeName='Usage').Create()
+            Domoticz.Device(Name="AC Voltage", Unit=6, TypeName='Voltage').Create()
         if len(Devices) < 7:
-            Domoticz.Device(Name="AC Voltage", Unit=7, TypeName='Voltage').Create()
+            Domoticz.Device(Name="AC Current", Unit=7, TypeName='Usage', Options={'ValueQuantity': 'Current', 'ValueUnits': 'A'}).Create()
         if len(Devices) < 8:
-            Domoticz.Device(Name="AC Current", Unit=8, TypeName='Usage', Options={'ValueQuantity': 'Current', 'ValueUnits': 'A'}).Create()
+            Domoticz.Device(Name="AC Frequency", Unit=8, TypeName='Custom', Options={'ValueQuantity': 'Frequency', 'ValueUnits': 'Hz'}).Create()
         if len(Devices) < 9:
-            Domoticz.Device(Name="AC Frequency", Unit=9, TypeName='Custom', Options={'ValueQuantity': 'Frequency', 'ValueUnits': 'Hz'}).Create()
-        if len(Devices) < 10:
-            Domoticz.Device(Name="Inverter Temperature", Unit=10, TypeName='Temperature').Create()
+            Domoticz.Device(Name="Inverter Temperature", Unit=9, TypeName='Temperature').Create()
 
     def updateDeviceValue(self, unit, nValue, sValue):
         try:
