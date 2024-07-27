@@ -18,8 +18,9 @@ To install:
 * Restart Domoticz.
 
 ## Devices
+![image](https://github.com/user-attachments/assets/19ddc61a-a7b6-4e25-a71e-10b47ea92146)
 
-![image](https://github.com/galadril/Domoticz-SolaxCloud-Plugin/assets/14561640/af425b0c-86d8-41f5-8eeb-795a2a2bb0ff)
+![image](https://github.com/user-attachments/assets/68311361-522f-4e82-ab99-3943a27b83b9)
 
 
 ## Configuration
