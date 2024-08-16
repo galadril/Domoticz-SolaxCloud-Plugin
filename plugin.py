@@ -105,26 +105,28 @@ class SolaxPlugin:
 
             if data.get('success'):
                 inverter_data = data['result'][0]
+                    
                 last_update_time_str = inverter_data['lastUpdateTimes']
                 Domoticz.Log(f"SolaxPlugin: Last update time: {last_update_time_str}")
 
                 # Convert last update time to a datetime object
-                last_update_time = datetime.datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
+                if last_update_time_str:
+                    last_update_time = datetime.datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
 
-                # Calculate the time difference between now and the last update time
-                time_diff = datetime.datetime.now() - last_update_time
-                minutes_diff = time_diff.total_seconds() / 60.0
+                    # Calculate the time difference between now and the last update time
+                    time_diff = datetime.datetime.now() - last_update_time
+                    minutes_diff = time_diff.total_seconds() / 60.0
+
+                    # Set grid_power_w to 0 if the last update was more than 10 minutes ago
+                    if minutes_diff > 10:
+                        grid_power_w = 0
+                    else:
+                        grid_power_w = inverter_data['gridPower']
 
                 # Correct the unit conversion
                 total_yield_w = inverter_data['totalYield'] * 1000.0
                 today_yield_kwh = inverter_data['rgmTodayYield']
                 today_yield_w = today_yield_kwh * 1000.0
-
-                # Set grid_power_w to 0 if the last update was more than 10 minutes ago
-                if minutes_diff > 10:
-                    grid_power_w = 0
-                else:
-                    grid_power_w = inverter_data['gridPower']
 
                 # Update devices with received data
                 self.updateDeviceValue(1, 0, f"0;{total_yield_w:.4f}")  # Total Energy Yield in kWh
