@@ -110,7 +110,7 @@ class SolaxPlugin:
                 Domoticz.Log(f"SolaxPlugin: Last update time: {last_update_time_str}")
 
                 # Convert last update time to a datetime object
-                if last_update_time_str:
+                if last_update_time_str and last_update_time_str != "None":
                     last_update_time = datetime.datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
 
                     # Calculate the time difference between now and the last update time
@@ -124,13 +124,14 @@ class SolaxPlugin:
                         grid_power_w = inverter_data['gridPower']
 
                 # Correct the unit conversion
-                total_yield_w = inverter_data['totalYield'] * 1000.0
+                total_yield_kwh = inverter_data['totalYield']
+                total_yield_wh = total_yield_kwh * 1000
                 today_yield_kwh = inverter_data['rgmTodayYield']
-                today_yield_w = today_yield_kwh * 1000.0
+                today_yield_wh = today_yield_kwh * 1000
 
                 # Update devices with received data
-                self.updateDeviceValue(1, 0, f"0;{total_yield_w:.4f}")  # Total Energy Yield in kWh
-                self.updateDeviceValue(2, 0, f"{grid_power_w};{today_yield_w:.1f}")  # Grid Power in W and Today's Energy Yield in kWh
+                self.updateDeviceValue(1, 0, f"0;{total_yield_wh:.4f}")  # Total Energy Yield in kWh
+                self.updateDeviceValue(2, 0, f"{grid_power_w};{total_yield_wh:.4f}")  # Grid Power in W and Today's Energy Yield in kWh
 
                 # Update other devices
                 self.updateDeviceValue(3, 0, inverter_data['pv1Voltage'])
@@ -161,9 +162,9 @@ class SolaxPlugin:
 
         # Create kWh devices with energy meter mode calculated and switchtype for exporting energy
         if len(Devices) < 1:
-            Domoticz.Device(Name="Total Energy Yield", Unit=1, TypeName='kWh', Options={'EnergyMeterMode': '1'}, Switchtype=4).Create()
+            Domoticz.Device(Name="Total Energy Yield", Unit=1, TypeName='kWh', Switchtype=4).Create()
         if len(Devices) < 2:
-            Domoticz.Device(Name="Grid Power", Unit=2, TypeName='kWh', Options={'EnergyMeterMode': 'From Device'}, Switchtype=4).Create()
+            Domoticz.Device(Name="Grid Power", Unit=2, TypeName='kWh', Switchtype=4).Create()
 
         # Create other types of devices
         if len(Devices) < 3:
