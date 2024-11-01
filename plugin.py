@@ -110,7 +110,7 @@ class SolaxPlugin:
                 Domoticz.Log(f"SolaxPlugin: Last update time: {last_update_time_str}")
 
                 # Convert last update time to a datetime object
-                if last_update_time_str and last_update_time_str != "None":
+                if last_update_time_str is not None:
                     last_update_time = datetime.datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
 
                     # Calculate the time difference between now and the last update time
