@@ -7,6 +7,9 @@ This plugin allows you to see all the relevant information from your SolaxCloud 
 More info about SolaxCloud:
 https://global.solaxcloud.com
 
+NOTE: the latest version now uses the SolaxCloud api:
+https://global.solaxcloud.com/green/user_api/SolaXCloud_User_API.pdf
+
 
 ## Installation
 
@@ -55,6 +58,7 @@ You can enable debugging by setting the Debug parameter to a value between 1 and
 | Version | Information |
 | ----- | ---------- |
 | 0.0.1 | Initial version |
+| 0.0.3 | Adjusted the script to use the SolarCloud official api |
 
 
 # Donation
