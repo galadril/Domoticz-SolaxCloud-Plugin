@@ -26,8 +26,9 @@ import Domoticz
 import requests
 import datetime
 
-class SolaxPlugin:
+STALE_THRESHOLD_MINUTES = 10  # Allow override via plugin params if needed
 
+class SolaxPlugin:
     def __init__(self):
         self.token = ""
         self.wifi_sn = ""
@@ -57,9 +58,9 @@ class SolaxPlugin:
             return
 
         self.lastPollCounter = 0
-        self.updateDevice()
+        self.updateDevices()
 
-    def updateDevice(self):
+    def fetchRealtimeData(self):
         headers = {
             "tokenId": self.token,
             "Content-Type": "application/json"
@@ -72,56 +73,60 @@ class SolaxPlugin:
             response = requests.post(self.api_url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-
-            if data.get("success"):
-                result = data["result"]
-
-                upload_time_str = result.get("uploadTime")
-                if not upload_time_str:
-                    Domoticz.Error("SolaxPlugin: No uploadTime found in response.")
-                    return
-
-                upload_time = datetime.datetime.strptime(upload_time_str, "%Y-%m-%d %H:%M:%S")
-                current_time = datetime.datetime.now()
-                if current_time - upload_time > datetime.timedelta(minutes=10):
-                    Domoticz.Debug("SolaxPlugin: Skipping stale data")
-                    return
-
-                # Core values
-                ac_power = result.get("acpower", 0)
-                yield_today = result.get("yieldtoday", 0)  # in kWh
-                yield_total = result.get("yieldtotal", 0)  # in kWh
-
-                # Update devices
-                self.updateDeviceValue(1, 0, f"0;{yield_total:.2f}")  # Total yield
-                self.updateDeviceValue(2, 0, f"{ac_power};{yield_total:.2f}")  # AC power + total yield (combined)
-                self.updateDeviceValue(3, 0, result.get("powerdc1", 0))
-                self.updateDeviceValue(4, 0, result.get("powerdc2", 0))
-                self.updateDeviceValue(5, 0, result.get("soc", 0))
-                self.updateDeviceValue(6, 0, result.get("inverterStatus", 0))
-                self.updateDeviceValue(7, 0, f"0;{yield_today:.2f}")  # Optional: today's yield as separate device
-
-                Domoticz.Log("SolaxPlugin: Data updated")
-            else:
+            if not data.get("success"):
                 Domoticz.Error("SolaxPlugin: API Error - " + data.get("exception", "Unknown"))
+                return None
+            return data["result"]
         except Exception as e:
-            Domoticz.Error(f"SolaxPlugin: Exception occurred: {str(e)}")
+            Domoticz.Error(f"SolaxPlugin: Exception occurred while fetching data: {str(e)}")
+            return None
+
+    def updateDevices(self):
+        result = self.fetchRealtimeData()
+        if not result:
+            return
+
+        upload_time_str = result.get("uploadTime")
+        if not upload_time_str:
+            Domoticz.Error("SolaxPlugin: No uploadTime found in response.")
+            return
+
+        upload_time = datetime.datetime.strptime(upload_time_str, "%Y-%m-%d %H:%M:%S")
+        current_time = datetime.datetime.now()
+        if current_time - upload_time > datetime.timedelta(minutes=STALE_THRESHOLD_MINUTES):
+            Domoticz.Debug("SolaxPlugin: Skipping stale data")
+            return
+
+        # Extract core values
+        ac_power = result.get("acpower", 0)
+        yield_today = result.get("yieldtoday", 0)  # kWh
+        yield_total = result.get("yieldtotal", 0)  # kWh
+
+        # Update devices
+        self.updateDeviceValue(1, 0, f"0;{yield_total:.2f}")              # Total Energy Yield
+        self.updateDeviceValue(2, 0, f"{ac_power};{yield_total:.2f}")    # AC Power + Total
+        self.updateDeviceValue(3, 0, result.get("powerdc1", 0))
+        self.updateDeviceValue(4, 0, result.get("powerdc2", 0))
+        self.updateDeviceValue(5, 0, result.get("soc", 0))
+        self.updateDeviceValue(6, 0, result.get("inverterStatus", 0))
+        self.updateDeviceValue(7, 0, f"0;{yield_today:.2f}")             # Today's Yield
+
+        Domoticz.Log("SolaxPlugin: Data updated")
 
     def createDevices(self):
-        if 1 not in Devices:
-            Domoticz.Device(Name="Total Energy Yield", Unit=1, TypeName='kWh', Switchtype=4).Create()
-        if 2 not in Devices:
-            Domoticz.Device(Name="AC Power + YieldTotal", Unit=2, TypeName='kWh', Switchtype=4).Create()
-        if 3 not in Devices:
-            Domoticz.Device(Name="PV1 Power", Unit=3, TypeName='Usage').Create()
-        if 4 not in Devices:
-            Domoticz.Device(Name="PV2 Power", Unit=4, TypeName='Usage').Create()
-        if 5 not in Devices:
-            Domoticz.Device(Name="Battery SoC", Unit=5, TypeName='Custom', Options={'ValueQuantity': 'Percentage', 'ValueUnits': '%' }).Create()
-        if 6 not in Devices:
-            Domoticz.Device(Name="Inverter Status Code", Unit=6, TypeName='Text').Create()
-        if 7 not in Devices:
-            Domoticz.Device(Name="Today's Yield", Unit=7, TypeName='kWh', Switchtype=4).Create()
+        device_definitions = [
+            (1, "Total Energy Yield",     'kWh',     {'Switchtype': 4}),
+            (2, "AC Power + YieldTotal",  'kWh',     {'Switchtype': 4}),
+            (3, "PV1 Power",              'Usage',   {}),
+            (4, "PV2 Power",              'Usage',   {}),
+            (5, "Battery SoC",            'Custom',  {'Options': {'ValueQuantity': 'Percentage', 'ValueUnits': '%'}}),
+            (6, "Inverter Status Code",   'Text',    {}),
+            (7, "Today's Yield",          'kWh',     {'Switchtype': 4}),
+        ]
+
+        for unit, name, typename, kwargs in device_definitions:
+            if unit not in Devices:
+                Domoticz.Device(Name=name, Unit=unit, TypeName=typename, **kwargs).Create()
 
     def updateDeviceValue(self, unit, nValue, sValue):
         try:
