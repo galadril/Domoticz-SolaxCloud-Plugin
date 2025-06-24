@@ -59,6 +59,7 @@ You can enable debugging by setting the Debug parameter to a value between 1 and
 | ----- | ---------- |
 | 0.0.1 | Initial version |
 | 0.0.3 | Adjusted the script to use the SolarCloud official api |
+| 0.0.4 | Small fixes on AC Power device |
 
 
 # Donation
